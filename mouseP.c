@@ -28,12 +28,12 @@ byte far *VGA=(byte far*)0xA0000000L;        /* this points to video memory. */
 typedef struct 
 {
   int x, y;
-}Point;
+} Point;
 
 typedef struct 
 {
   Point p[Max_Point];
-}Shape;
+} Shape;
 
 typedef struct 
 {
@@ -43,7 +43,7 @@ typedef struct
 typedef struct
 {
   Point p[2];
-}Line;
+} Line;
 
 menu M;
 Line AL[99];
@@ -197,7 +197,7 @@ void paintline()
 {
   int flag = 0;
   Point tempP1, tempP2;
-
+  printf("Paint Line\n");
   while (!kbhit () && flag ==0)
   {
     in.x.ax = 3;
@@ -240,7 +240,7 @@ void paintRect()
   int flag = 0;
   Point tempP1, tempP2;
   Shape tempS;
-
+  printf("");
   while (!kbhit () && flag ==0)
   {
     in.x.ax = 3;
@@ -277,10 +277,48 @@ void paintRect()
   num_AS++;
 }
 
+void flood_fill (int x, int y, byte color, byte targetcolor, byte isFirst, int max)
+{
+  if (x >= 0 && y >= 0 && x < SCREEN_WIDTH && y < SCREEN_HEIGHT) {
+    if (isFirst) {
+      targetcolor = VGA[(y*SCREEN_WIDTH)+x-1];
+      VGA[(y*SCREEN_WIDTH)+x] = targetcolor;
+    }
+    if (color != VGA[(y*SCREEN_WIDTH)+x] && max!=4000) {
+      if (VGA[(y*SCREEN_WIDTH)+x] == targetcolor) {
+        max = max+1;
+        putpixel(x,y,color);
+        flood_fill(x,y+1,color,targetcolor,0,max+1);
+        flood_fill(x,y-1,color,targetcolor,0,max+1);
+        flood_fill(x+1,y,color,targetcolor,0,max+1);
+        flood_fill(x-1,y,color,targetcolor,0,max+1);
+      }
+    }
+  }
+}
+
+void paintFill() {
+  Point tempP1;
+  int flag = 0;
+  printf("");
+  while (!kbhit () && flag ==0)
+  {
+    in.x.ax=3;
+    int86(0X33,&in,&out);
+    if (out.x.bx == 1) { 
+      tempP1.x = out.x.cx/2;
+      tempP1.y = out.x.dx;
+      flag = 1;
+    } 
+  }
+
+  delay(100);
+  //printf("X %d Y %d color %d",tempP1.x, tempP1.y, getcolor(tempP1.x, tempP1.y-10));
+  flood_fill (tempP1.x, tempP1.y, Ccolor, 0, 1, 0);
+}
 
 void detect ()
 {
-
   int flag =0;
   int flag1 =0;
   int i,j;
@@ -314,6 +352,8 @@ void detect ()
             case 0 :  paintline();
                       break;
             case 1 :  paintRect();
+                      break;
+            case 2 :  paintFill();
                       break;
             default : break;
           }
