@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <dos.h>
 #include <conio.h>
+#include <mem.h>
 //#include <graphics.h>
 
 #define VIDEO_INT           0x10
@@ -28,12 +29,12 @@ byte far *VGA=(byte far*)0xA0000000L;        /* this points to video memory. */
 typedef struct 
 {
   int x, y;
-} Point;
+}Point;
 
 typedef struct 
 {
   Point p[Max_Point];
-} Shape;
+}Shape;
 
 typedef struct 
 {
@@ -43,13 +44,22 @@ typedef struct
 typedef struct
 {
   Point p[2];
-} Line;
+}Line;
+
+typedef struct tagBITMAP              /* the structure for a bitmap. */
+{
+  word width;
+  word height;
+  byte *data;
+} BITMAP;
+
 
 menu M;
 Line AL[99];
 Shape AS[99];
-Shape colorP[9];
-int Ccolor=0;
+Shape colorP[16];
+int Ccolor = 0;
+int CFunc = -1;
 
 int num_AS = 0;
 int num_AL = 0;
@@ -88,6 +98,13 @@ int signum(int x)
   {
     return 0;
   }
+}
+
+void fskip(FILE *fp, int num_bytes)
+{
+   int i;
+   for (i=0; i<num_bytes; i++)
+      fgetc(fp);
 }
 
 Point createPoint(int x, int y)
@@ -164,7 +181,7 @@ void drawShape(Shape S1, int color){
   Point nullP;
   for (i=0; i < Max_Point; i++)
   {
-    if(i<3 && S1.p[i+1].x != nullP.x && S1.p[i+1].y != nullP.y )
+    if(i<3 )
       drawline(S1.p[i],S1.p[i+1],color);
     else
       drawline(S1.p[i],S1.p[0],color);
@@ -193,40 +210,8 @@ void fillRect(Shape tempS, int color)
   }
 }
 
-void paintline()
+void paintline(Point tempP1,Point tempP2)
 {
-  int flag = 0;
-  Point tempP1, tempP2;
-  printf("Paint Line\n");
-  while (!kbhit () && flag ==0)
-  {
-    in.x.ax = 3;
-    int86 (0X33,&in,&out);
-    if (out.x.bx == 1)
-    {
-      
-      tempP1.x = out.x.cx/2;
-      tempP1.y = out.x.dx;
-      flag = 1;
-    }
-    delay (100);
-  } 
-
-  flag =0;
-  while (!kbhit () && flag ==0)
-  {
-    in.x.ax = 3;
-    int86 (0X33,&in,&out);
-    if (out.x.bx == 1)
-    {
-      tempP2.x = out.x.cx/2;
-      tempP2.y = out.x.dx;
-      flag = 1;
-    }
-    
-    delay (100); // Otherwise due to quick computer response 100s of words will get print
-  }
-
   drawline(tempP1,tempP2,Ccolor);
 
   AS[num_AL].p[0]= tempP1;
@@ -235,46 +220,13 @@ void paintline()
   num_AL++;
 }
 
-void paintRect()
+void paintRect(Point tempP1,Point tempP2)
 {
-  int flag = 0;
-  Point tempP1, tempP2;
-  Shape tempS;
-  printf("");
-  while (!kbhit () && flag ==0)
-  {
-    in.x.ax = 3;
-    int86 (0X33,&in,&out);
-    if (out.x.bx == 1)
-    {
-      
-      tempP1.x = out.x.cx/2;
-      tempP1.y = out.x.dx;
-      flag = 1;
-    }
-    delay (100);
-  } 
+	Shape tempS = createShape(tempP1,tempP2);
 
-  flag =0;
-  while (!kbhit () && flag ==0)
-  {
-    in.x.ax = 3;
-    int86 (0X33,&in,&out);
-    if (out.x.bx == 1)
-    {
-      tempP2.x = out.x.cx/2;
-      tempP2.y = out.x.dx;
-      flag = 1;
-    }
-    
-    delay (100); // Otherwise due to quick computer response 100s of words will get print
-  }
-
-  tempS = createShape(tempP1,tempP2);
-
-  drawShape(tempS,Ccolor);
-  AS[num_AS]= tempS;
-  num_AS++;
+	drawShape(tempS,Ccolor);
+	AS[num_AS]= tempS;
+	num_AS++;
 }
 
 void flood_fill (int x, int y, byte color, byte targetcolor, byte isFirst, int max)
@@ -297,89 +249,8 @@ void flood_fill (int x, int y, byte color, byte targetcolor, byte isFirst, int m
   }
 }
 
-void paintFill() {
-  Point tempP1;
-  int flag = 0;
-  printf("");
-  while (!kbhit () && flag ==0)
-  {
-    in.x.ax=3;
-    int86(0X33,&in,&out);
-    if (out.x.bx == 1) { 
-      tempP1.x = out.x.cx/2;
-      tempP1.y = out.x.dx;
-      flag = 1;
-    } 
-  }
-
-  delay(100);
-  //printf("X %d Y %d color %d",tempP1.x, tempP1.y, getcolor(tempP1.x, tempP1.y-10));
+void paintFill(Point tempP1) {
   flood_fill (tempP1.x, tempP1.y, Ccolor, 0, 1, 0);
-}
-
-void detect ()
-{
-  int flag =0;
-  int flag1 =0;
-  int i,j;
-
-  while (!kbhit () )
-  {
-    Point tempP;
-    i = 0;
-    j = 0;
-    in.x.ax = 3;
-    int86 (0X33,&in,&out);
-    if (out.x.bx == 1)
-    {
-      
-      tempP.x = out.x.cx/2;
-      tempP.y = out.x.dx;
-      delay (100);
-      if(tempP.y<SCREEN_WIDTH/Max_Shape)
-      {
-        while (flag == 0 && i<Max_Shape)
-        {
-          if(isInShape(M.s[i],tempP)==1)
-            flag = 1;
-          else
-            i++;
-        }
-        if(flag==1)
-        {
-          switch (i)
-          {
-            case 0 :  paintline();
-                      break;
-            case 1 :  paintRect();
-                      break;
-            case 2 :  paintFill();
-                      break;
-            default : break;
-          }
-
-          flag = 0;
-        }
-      }
-      else
-      {
-        while (flag1 == 0 && j<16)
-        {
-          if(isInShape(colorP[j],tempP)==1)
-            flag1 = 1;
-          else
-            j++;
-        }
-
-        if(flag1==1)
-        {
-          Ccolor=j;
-          flag1=0;
-        }
-      }
-    }
-    delay (100); // Otherwise due to quick computer response 100s of words will get print
-  }
 }
 
 void hide_mouse ()
@@ -396,19 +267,195 @@ void detect_mouse ()
     printf ("\nMouse Failed To Initialize");
 }
 
-void showmouse_text ()
+void showmouse ()
 {
   in.x.ax = 1;
   int86 (0X33,&in,&out);
 }
 
+void detect ()
+{
+  int flag =0;
+  int i;
+  Point firstP = createPoint(-1,-1);
+  Point secondP = createPoint(-1,-1);
+  Point emptyP = createPoint(-1,-1);
+  while (!kbhit () )
+  {
+    Point tempP;
+    flag = 0;
+    i = 0;
+    in.x.ax = 3;
+    int86 (0X33,&in,&out);
+    if (out.x.bx == 1)
+    {
+      tempP.x = out.x.cx/2;
+      tempP.y = out.x.dx;
+      hide_mouse();
+      if((tempP.y>0) && (tempP.y<SCREEN_WIDTH/Max_Shape))
+      {
+        while (flag == 0 && i<Max_Shape)
+        {
+          if(isInShape(M.s[i],tempP)==1)
+            flag = 1;
+          else
+          {
+            i++;
+          }
+        }
+        if(flag==1)
+        {
+          if(CFunc > -1)
+          {
+          	drawShape(M.s[CFunc],0);
+          }
+          CFunc = i;
+          drawShape(M.s[i],14);
+          if(CFunc!=i)
+          {
+          	firstP = createPoint(-1,-1);
+			secondP = createPoint(-1,-1);
+          }
+          flag = 0;
+        }
+      }
+      else if((tempP.y>SCREEN_WIDTH/Max_Shape) && (tempP.y<((SCREEN_WIDTH/Max_Shape)+1+(SCREEN_WIDTH/16)))) 
+      {
+        while (flag == 0 && i<16)
+        {
+          if(isInShape(colorP[i],tempP)==1)
+            {
+            	flag = 1;
+            }
+          else
+          {
+            i++;
+          }
+        }
+
+        if(flag==1)
+        {
+          drawShape(colorP[Ccolor],0);
+          Ccolor=i;
+          drawShape(colorP[i],14);
+          flag=0;
+        }
+      }
+      else if(tempP.y>((SCREEN_WIDTH/Max_Shape)+1+(SCREEN_WIDTH/16)))
+      {
+      	if(CFunc>-1)
+      	{
+      		if(CFunc==0 || CFunc==1)
+      		{
+      			if(firstP.x != -1)
+      			{
+      				secondP = tempP;
+      				if(CFunc == 0){
+      					paintline(firstP,secondP);
+      				}
+      				else if (CFunc==1)
+      				{
+      					paintRect(firstP,secondP);
+      				}
+      				drawShape(M.s[CFunc],0);
+      				CFunc = -1;
+      				firstP = emptyP;
+      				secondP = emptyP;
+      			}
+      			else
+      			{
+      				firstP = tempP;
+      			}
+      		}
+      		else if(CFunc==2)
+      		{
+      			paintFill(tempP);
+      		}
+     	}
+     }
+    }
+    showmouse();
+    delay (120); // Otherwise due to quick computer response 100s of words will get print
+  }
+}
+
+void load_bmp(char *file,BITMAP *b)
+{
+  FILE *fp;
+  long index;
+  word num_colors;
+  int x;
+
+  /* open the file */
+  if ((fp = fopen(file,"rb")) == NULL)
+  {
+    printf("Error opening file %s.\n",file);
+    exit(1);
+  }
+
+  /* check to see if it is a valid bitmap file */
+  if (fgetc(fp)!='B' || fgetc(fp)!='M')
+  {
+    fclose(fp);
+    printf("%s is not a bitmap file.\n",file);
+    exit(1);
+  }
+
+  /* read in the width and height of the image, and the
+     number of colors used; ignore the rest */
+  fskip(fp,16);
+  fread(&b->width, sizeof(word), 1, fp);
+  fskip(fp,2);
+  fread(&b->height,sizeof(word), 1, fp);
+  fskip(fp,22);
+  fread(&num_colors,sizeof(word), 1, fp);
+  fskip(fp,6);
+
+  /* assume we are working with an 8-bit file */
+  if (num_colors==0) num_colors=256;
+
+
+  /* try to allocate memory */
+  if ((b->data = (byte *) malloc((word)(b->width*b->height))) == NULL)
+  {
+    fclose(fp);
+    printf("Error allocating memory for file %s.\n",file);
+    exit(1);
+  }
+
+  /* Ignore the palette information for now.
+     See palette.c for code to read the palette info. */
+  fskip(fp,num_colors*4);
+
+  /* read the bitmap */
+  for(index=(b->height-1)*b->width;index>=0;index-=b->width)
+    for(x=0;x<b->width;x++)
+      b->data[(word)index+x]=(byte)fgetc(fp);
+
+  fclose(fp);
+}
+
+void draw_bitmap(BITMAP *bmp,int x,int y)
+{
+  int j;
+  word screen_offset = (y<<8)+(y<<6)+x;
+  word bitmap_offset = 0;
+
+  for(j=0;j<bmp->height;j++)
+  {
+    memcpy(&VGA[screen_offset],&bmp->data[bitmap_offset],bmp->width);
+
+    bitmap_offset+=bmp->width;
+    screen_offset+=SCREEN_WIDTH;
+  }
+}
+
 int main ()
 {
-
-  int i,j;
+  BITMAP bmp;
+  int i,j,x,y;
   Point tempP1,tempP2;
-  
-
+  load_bmp("rocket.bmp",&bmp);
   set_mode(VGA_256_COLOR_MODE); 
 
   for (i = 0; i < SCREEN_HEIGHT; ++i)
@@ -419,26 +466,31 @@ int main ()
     tempP2.y = i;
     drawline(tempP1,tempP2,15); 
   }
+for(y=0;y<=SCREEN_HEIGHT-bmp.height;y+=bmp.height)
+    for(x=0;x<=(SCREEN_WIDTH)/2-bmp.width;x+=bmp.width)
+      draw_bitmap(&bmp,x,y);
 
-  for (i = 0; i < Max_Shape;++i)
-  {
-    M.s[i]=createShape(createPoint(i*SCREEN_WIDTH/Max_Shape,0),createPoint((i+1)*SCREEN_WIDTH/Max_Shape,SCREEN_WIDTH/Max_Shape));
-    drawShape(M.s[i],0);
-  }
+  // for (i = 0; i < Max_Shape;++i)
+  // {
+  //   M.s[i]=createShape(createPoint(i*SCREEN_WIDTH/Max_Shape,0),createPoint((i+1)*SCREEN_WIDTH/Max_Shape,SCREEN_WIDTH/Max_Shape));
+  //   drawShape(M.s[i],0);
+  // }
 
-  for (i = 0; i < 16; ++i)
-  {
-    colorP[i]=createShape(createPoint(i*SCREEN_WIDTH/16,1+SCREEN_WIDTH/Max_Shape),createPoint((i+1)*SCREEN_WIDTH/16,(SCREEN_WIDTH/Max_Shape)+1+(SCREEN_WIDTH/16)));
-    fillRect(colorP[i],i);
-    drawShape(colorP[i],0);
-  }
 
-  detect_mouse ();
-  showmouse_text ();
-  detect ();
-  hide_mouse ();
+  // for (i = 0; i < 16; ++i)
+  // {
+  //   colorP[i]=createShape(createPoint(i*SCREEN_WIDTH/16,1+SCREEN_WIDTH/Max_Shape),createPoint((i+1)*SCREEN_WIDTH/16,(SCREEN_WIDTH/Max_Shape)+1+(SCREEN_WIDTH/16)));
+  //   fillRect(colorP[i],i);
+  //   drawShape(colorP[i],0);
+  // }
+  // drawShape(colorP[Ccolor],14);
+
+  // detect_mouse ();
+  // showmouse ();
+  // detect ();
+  // hide_mouse ();
   getch ();
-
   set_mode(TEXT_MODE);
+
   return 0;
 }
