@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <dos.h>
 #include <conio.h>
-#include <mem.h>
+#include <math.h>
 //#include <graphics.h>
 
 #define VIDEO_INT           0x10
@@ -34,6 +34,7 @@ typedef struct
 typedef struct 
 {
   Point p[Max_Point];
+  int color;
 }Shape;
 
 typedef struct 
@@ -44,6 +45,7 @@ typedef struct
 typedef struct
 {
   Point p[2];
+  int color;
 }Line;
 
 typedef struct tagBITMAP              /* the structure for a bitmap. */
@@ -124,6 +126,7 @@ Shape createShape(Point p1, Point p2)
   tempS.p[2]=p2;
   tempS.p[3].x=p2.x;
   tempS.p[3].y=p1.y;
+  tempS.color=0;
   return tempS;
 }
 
@@ -196,6 +199,7 @@ int isInShape(Shape S1,Point P1)
     return 0;
 }
 
+
 void fillRect(Shape tempS, int color)
 {
   Point tempP1,tempP2;
@@ -216,14 +220,14 @@ void paintline(Point tempP1,Point tempP2)
 
   AS[num_AL].p[0]= tempP1;
   AS[num_AL].p[1]= tempP2;
-
+  AS[num_AL].color = Ccolor;
   num_AL++;
 }
 
 void paintRect(Point tempP1,Point tempP2)
 {
 	Shape tempS = createShape(tempP1,tempP2);
-
+	tempS.color = Ccolor;
 	drawShape(tempS,Ccolor);
 	AS[num_AS]= tempS;
 	num_AS++;
@@ -273,6 +277,31 @@ void showmouse ()
   int86 (0X33,&in,&out);
 }
 
+void zoomin()
+{
+  int starty, finishy, i, j, x, y;
+  //((SCREEN_WIDTH/Max_Shape)+1+(SCREEN_WIDTH/16))
+
+  starty = ((SCREEN_WIDTH/Max_Shape)+2+(SCREEN_WIDTH/16));
+  finishy = starty + 74;
+  x = 0;
+  y = 199;
+
+  for (j = finishy; j > starty + 1; j--)
+  {
+    for (i = 0; i < 160; i++)
+    {
+      putpixel(x, y, getcolor(i, j));
+      putpixel(x+1, y, getcolor(i, j));
+      putpixel(x, y-1, getcolor(i, j));
+      putpixel(x+1, y-1, getcolor(i, j));
+      x += 2;
+    }
+    x = 0;
+    y -= 2;
+  }
+}
+
 void detect ()
 {
   int flag =0;
@@ -280,6 +309,11 @@ void detect ()
   Point firstP = createPoint(-1,-1);
   Point secondP = createPoint(-1,-1);
   Point emptyP = createPoint(-1,-1);
+  int centerx;
+  int centery;
+  Shape tempS,emptyS;
+  Point tempP1,tempP2,tempP3,tempP4,emptyTP;
+  double phi = acos(-1);
   while (!kbhit () )
   {
     Point tempP;
@@ -309,13 +343,14 @@ void detect ()
           {
           	drawShape(M.s[CFunc],0);
           }
-          CFunc = i;
-          drawShape(M.s[i],14);
           if(CFunc!=i)
           {
-          	firstP = createPoint(-1,-1);
-			secondP = createPoint(-1,-1);
+          	firstP = emptyP;
+			secondP = emptyP;
           }
+          CFunc = i;
+          drawShape(M.s[i],14);
+          
           flag = 0;
         }
       }
@@ -370,11 +405,108 @@ void detect ()
       		else if(CFunc==2)
       		{
       			paintFill(tempP);
+  				drawShape(M.s[CFunc],0);
+      			CFunc = -1;
+				firstP = emptyP;
+				secondP = emptyP;
       		}
-     	}
-     }
+      		else if(CFunc==3)
+      		{
+  				
+			  	while (flag == 0 && i<num_AS)
+			 	  {
+				    if(isInShape(AS[i],tempP)==1)
+				    {
+				      flag = 1;
+				    }
+				    else
+			     	{
+				       i++;
+			      	}
+		  		}
+			  
+			  	if(flag==1)
+			   {
+			      drawShape(AS[i], 15);
+
+			      tempP1.x = AS[i].p[0].x;
+			      tempP1.y = AS[i].p[0].y;
+			      tempP2.x = AS[i].p[2].x*1.5;
+			      tempP2.y = AS[i].p[2].y*1.5;
+
+			      tempS = AS[i];
+			      tempS.p[1].x = tempP2.x;
+			      tempS.p[3].y = tempP2.y;
+			      tempS.p[2] = tempP2;
+			      tempS.color = AS[i].color;
+			      drawShape(tempS, tempS.color);
+			      AS[i]= tempS;    
+			      tempS = emptyS; 
+			      tempP1 = emptyTP;
+			      tempP2 = emptyTP;
+  				  drawShape(M.s[CFunc],0);
+			      CFunc = -1;
+  				  firstP = emptyP;
+  				  secondP = emptyP;  
+			    }
+	      		
+     		}
+      		else if(CFunc==4)
+      		{
+      			while (flag == 0 && i<num_AS)
+			 	{
+				    if(isInShape(AS[i],tempP)==1)
+				    {
+				      flag = 1;
+				    }
+				    else
+			     	{
+				       i++;
+			      	}
+		  		}
+			  
+			  	if(flag==1)
+			   	{
+			      drawShape(AS[i], 15);
+			      centerx = AS[i].p[0].x + (AS[i].p[2].x - AS[i].p[0].x);
+			      centery = AS[i].p[0].y + (AS[i].p[2].y - AS[i].p[0].y);
+				  tempP1.x  = (int)floor(((double)(AS[i].p[0].x-centerx)*(double)cos(45*phi/180)-(double)(AS[i].p[0].y-centery)*(double)sin(45*phi/180))+(double)centerx+ 0.5);
+				  tempP1.y = (int)floor(((double)(AS[i].p[0].y-centery)*(double)cos(45*phi/180)+(double)(AS[i].p[0].x-centerx)*(double)sin(45*phi/180))+(double)centery+ 0.5);
+				  tempP2.x = (int)floor(((double)(AS[i].p[1].x-centerx)*(double)cos(45*phi/180)-(double)(AS[i].p[1].y-centery)*(double)sin(45*phi/180))+(double)centerx+ 0.5);
+				  tempP2.y = (int)floor(((double)(AS[i].p[1].y-centery)*(double)cos(45*phi/180)+(double)(AS[i].p[1].x-centerx)*(double)sin(45*phi/180))+(double)centery+ 0.5);
+  				  tempP3.x  = (int)floor(((double)(AS[i].p[2].x-centerx)*(double)cos(45*phi/180)-(double)(AS[i].p[2].y-centery)*(double)sin(45*phi/180))+(double)centerx+ 0.5);
+				  tempP3.y = (int)floor(((double)(AS[i].p[2].y-centery)*(double)cos(45*phi/180)+(double)(AS[i].p[2].x-centerx)*(double)sin(45*phi/180))+(double)centery+ 0.5);
+				  tempP4.x = (int)floor(((double)(AS[i].p[3].x-centerx)*(double)cos(45*phi/180)-(double)(AS[i].p[3].y-centery)*(double)sin(45*phi/180))+(double)centerx+ 0.5);
+				  tempP4.y = (int)floor(((double)(AS[i].p[3].y-centery)*(double)cos(45*phi/180)+(double)(AS[i].p[3].x-centerx)*(double)sin(45*phi/180))+(double)centery+ 0.5);
+
+				  tempS.p[0] = tempP1;
+				  tempS.p[1] = tempP2;
+				  tempS.p[2] = tempP3;
+				  tempS.p[3] = tempP4;
+			      tempS.color = AS[i].color;
+			      drawShape(tempS, 0);
+			      AS[i]= tempS;    
+			      tempS = emptyS; 
+			      tempP1 = emptyTP;
+			      tempP2 = emptyTP;
+  				  drawShape(M.s[CFunc],0);  
+			      CFunc = -1;
+  				  firstP = emptyP;
+  				  secondP = emptyP;
+		    	}
+	      		
+      		}
+          else if(CFunc==5)
+          {
+            zoomin();
+            drawShape(M.s[CFunc],0);  
+            CFunc = -1;
+          }
+      		
+    	}
+      }
+      showmouse();
     }
-    showmouse();
     delay (120); // Otherwise due to quick computer response 100s of words will get print
   }
 }
@@ -455,7 +587,6 @@ int main ()
   BITMAP bmp;
   int i,j,x,y;
   Point tempP1,tempP2;
-  load_bmp("rocket.bmp",&bmp);
   set_mode(VGA_256_COLOR_MODE); 
 
   for (i = 0; i < SCREEN_HEIGHT; ++i)
@@ -466,31 +597,55 @@ int main ()
     tempP2.y = i;
     drawline(tempP1,tempP2,15); 
   }
-for(y=0;y<=SCREEN_HEIGHT-bmp.height;y+=bmp.height)
-    for(x=0;x<=(SCREEN_WIDTH)/2-bmp.width;x+=bmp.width)
-      draw_bitmap(&bmp,x,y);
+  
+  //draw_bitmap(&bmp,100,100);
+  for(i=0;i<5;i++)
+  {
+  	switch (i)
+    {
+    case 0:
+      load_bmp("line.bmp", &bmp);
+      break;
+    case 1:
+      load_bmp("rect.bmp", &bmp);
+      break;
+    case 2:
+      load_bmp("paint.bmp", &bmp);
+      break;
+    case 3:
+      load_bmp("resize.bmp", &bmp);
+      break;
+    case 4:
+      load_bmp("rotate.bmp", &bmp);
+      break;
+    default:
+      break;
+    }
+	for(y=0;y<32;y++)
+		for(x=0;x<32;x++)
+			VGA [(32*i)+x+y*SCREEN_WIDTH]=bmp.data[x+y*32];
+  }
 
-  // for (i = 0; i < Max_Shape;++i)
-  // {
-  //   M.s[i]=createShape(createPoint(i*SCREEN_WIDTH/Max_Shape,0),createPoint((i+1)*SCREEN_WIDTH/Max_Shape,SCREEN_WIDTH/Max_Shape));
-  //   drawShape(M.s[i],0);
-  // }
+  for (i = 0; i < Max_Shape;++i)
+  {
+    M.s[i]=createShape(createPoint(i*SCREEN_WIDTH/Max_Shape,0),createPoint((i+1)*SCREEN_WIDTH/Max_Shape,SCREEN_WIDTH/Max_Shape));
+    drawShape(M.s[i],0);
+  }
 
+  for (i = 0; i < 16; ++i)
+  {
+    colorP[i]=createShape(createPoint(i*SCREEN_WIDTH/16,1+SCREEN_WIDTH/Max_Shape),createPoint((i+1)*SCREEN_WIDTH/16,(SCREEN_WIDTH/Max_Shape)+1+(SCREEN_WIDTH/16)));
+    fillRect(colorP[i],i);
+    drawShape(colorP[i],0);
+  }
+  drawShape(colorP[Ccolor],14);
 
-  // for (i = 0; i < 16; ++i)
-  // {
-  //   colorP[i]=createShape(createPoint(i*SCREEN_WIDTH/16,1+SCREEN_WIDTH/Max_Shape),createPoint((i+1)*SCREEN_WIDTH/16,(SCREEN_WIDTH/Max_Shape)+1+(SCREEN_WIDTH/16)));
-  //   fillRect(colorP[i],i);
-  //   drawShape(colorP[i],0);
-  // }
-  // drawShape(colorP[Ccolor],14);
-
-  // detect_mouse ();
-  // showmouse ();
-  // detect ();
-  // hide_mouse ();
+  detect_mouse ();
+  showmouse ();
+  detect ();
+  hide_mouse ();
   getch ();
   set_mode(TEXT_MODE);
-
+  free(bmp.data);
   return 0;
 }
