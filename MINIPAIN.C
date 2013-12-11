@@ -599,7 +599,7 @@ int main ()
   }
   
   //draw_bitmap(&bmp,100,100);
-  for(i=0;i<5;i++)
+  for(i=0;i<=5;i++)
   {
   	switch (i)
     {
@@ -617,6 +617,9 @@ int main ()
       break;
     case 4:
       load_bmp("rotate.bmp", &bmp);
+      break;
+    case 5:
+      load_bmp("zoom.bmp", &bmp);
       break;
     default:
       break;
